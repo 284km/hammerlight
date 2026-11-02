@@ -11,7 +11,9 @@
       label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
       select, button { font: inherit; font-size: 13px; }
       #status, #overlay { font-size: 12px; color: #9a9aa2; }
+      #status.error, #overlay .error { color: #ff8a80; }
       #overlay code { user-select: all; color: #e8e8ea; }
+      #port { width: 6em; font: inherit; font-size: 13px; }
       #stage { padding: 16px; }
       #stage canvas { width: 100%; height: auto; display: block; background: #0a0a0c; border-radius: 6px; }
     </style>
@@ -27,6 +29,8 @@
       </label>
       <button id="clear">New take</button>
       <span id="status"></span>
+      <label>OBS port <input id="port" type="number" min="1024" max="65535" /></label>
+      <button id="apply-port">Apply</button>
       <span id="overlay"></span>
     </header>
     <div id="stage"></div>

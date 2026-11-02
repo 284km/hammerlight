@@ -1,0 +1,71 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the Windows installers and attach them to a
+# draft GitHub release. Run it by hand to get the installers as a workflow
+# artifact without making a release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json version $version" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist:win
+
+      # Install the way a user would (per user, no admin), start the installed
+      # app and check that the OBS overlay answers.
+      - name: Smoke test the x64 installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist/*-setup-x64.exe | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\hammerlight\hammerlight.exe'
+          if (-not (Test-Path $exe)) { throw "not installed at $exe" }
+          Get-Process hammerlight -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Process -FilePath $exe
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            try {
+              $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:17321/overlay/index.html
+              $ok = $r.StatusCode -eq 200 -and $r.Content -match 'hammerlight overlay'
+            } catch { Start-Sleep -Milliseconds 500 }
+          }
+          Get-Process hammerlight -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) { throw 'the installed app did not serve the overlay' }
+          Write-Output "installed and served the overlay: $exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: dist/*-setup-*.exe
+          if-no-files-found: error
+
+      - name: Draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*-setup-*.exe --draft --title "$GITHUB_REF_NAME" --generate-notes

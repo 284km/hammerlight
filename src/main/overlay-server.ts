@@ -69,13 +69,16 @@ export async function startOverlayServer(opts: OverlayServerOptions): Promise<Ov
     }
   });
 
-  const wss = new WebSocketServer({ server: http, path: '/events' });
-
   await new Promise<void>((ok, fail) => {
     http.once('error', fail);
     http.listen(opts.port, '127.0.0.1', () => ok());
   });
   port = (http.address() as AddressInfo).port;
+
+  // Attached only after listen succeeds: ws re-emits the server's errors on
+  // itself, and a listen error (port in use) would throw from there instead of
+  // reaching the promise above.
+  const wss = new WebSocketServer({ server: http, path: '/events' });
 
   return {
     url: `http://127.0.0.1:${port}/`,

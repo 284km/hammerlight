@@ -1,0 +1,31 @@
+appId: io.github.284km.hammerlight
+productName: hammerlight
+copyright: Copyright © 2026 Kazuma Furuhashi
+
+directories:
+  output: dist
+  buildResources: build
+
+# Only the built app; production dependencies (ws) are added automatically.
+files:
+  - out/**
+  - package.json
+
+# Chromium UI strings; the rest only add size.
+electronLanguages: [en-US, ja]
+
+# Architectures come from the command line (--x64 / --arm64), one installer
+# each. Listing both here would also produce a combined installer twice the size.
+win:
+  target: nsis
+  icon: build/icon.png
+
+# One click, per user: no admin rights and no UAC prompt.
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: ${productName}-${version}-setup-${arch}.${ext}
+  shortcutName: hammerlight
+  deleteAppDataOnUninstall: false
+
+publish: null

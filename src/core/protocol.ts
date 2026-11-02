@@ -7,8 +7,17 @@ export type WireMessage =
   | { type: 'clock'; t: number }
   | { type: 'reset' };
 
+export interface OverlayStatus {
+  port: number;
+  // null when the server is not running.
+  url: string | null;
+  error: string | null;
+}
+
 // What the preload script exposes to the app window as `window.hammerlight`.
 export interface HammerlightApi {
   broadcast(msg: WireMessage): void;
-  overlayUrl(): Promise<string | null>;
+  overlayStatus(): Promise<OverlayStatus>;
+  // Moves the overlay server and remembers the port for next time.
+  setOverlayPort(port: number): Promise<OverlayStatus>;
 }

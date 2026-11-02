@@ -1,6 +1,6 @@
 {
   "name": "hammerlight",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A MIDI piano visualizer for live streaming with OBS and for making videos.",
   "license": "MIT",
@@ -16,7 +16,9 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dist:win": "electron-vite build && electron-builder --win --x64 && electron-builder --win --arm64",
+    "icon": "node scripts/make-icon.mjs"
   },
   "dependencies": {
     "ws": "^8.22.1"
@@ -25,6 +27,7 @@
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
     "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "pixi.js": "^8.22.0",
     "typescript": "^7.0.2",

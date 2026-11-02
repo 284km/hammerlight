@@ -2,7 +2,7 @@ import { Application } from 'pixi.js';
 // Lets PixiJS run under the page's CSP, which forbids eval.
 import 'pixi.js/unsafe-eval';
 import { parseMidiMessage } from '../core/midi';
-import type { HammerlightApi } from '../core/protocol';
+import type { HammerlightApi, OverlayStatus } from '../core/protocol';
 import { Take } from '../core/take';
 import { defaultLayoutOptions, layout } from '../render/layout';
 import { ScenePainter } from '../render/paint';
@@ -22,6 +22,7 @@ const CLOCK_INTERVAL_MS = 500;
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const inputSelect = $<HTMLSelectElement>('input');
 const modeSelect = $<HTMLSelectElement>('mode');
+const portInput = $<HTMLInputElement>('port');
 const status = $<HTMLSpanElement>('status');
 
 let take = new Take();
@@ -30,6 +31,11 @@ let takeOrigin = performance.now();
 let replayOrigin = 0;
 
 const sessionTime = (nowMs: number): number => (nowMs - takeOrigin) / 1000;
+
+function setStatus(text: string, isError = false): void {
+  status.textContent = text;
+  status.classList.toggle('error', isError);
+}
 
 function newTake(): void {
   take = new Take();
@@ -51,27 +57,69 @@ async function setupMidi(): Promise<void> {
   try {
     access = await navigator.requestMIDIAccess();
   } catch (err) {
-    status.textContent = `MIDI unavailable: ${String(err)}`;
+    setStatus(`MIDI unavailable: ${String(err)}`, true);
     return;
   }
+
+  // Open the chosen input explicitly and close the rest, so other apps can use
+  // them. On Windows a MIDI input can usually be open in only one app at a time,
+  // and opening one that is taken fails here rather than silently.
+  const connect = async (): Promise<void> => {
+    for (const input of access.inputs.values()) {
+      if (input.id === inputSelect.value) continue;
+      input.onmidimessage = null;
+      if (input.connection === 'open') await input.close();
+    }
+    const chosen = access.inputs.get(inputSelect.value);
+    if (!chosen) {
+      setStatus('No MIDI input found', true);
+      return;
+    }
+    try {
+      await chosen.open();
+      if (chosen.connection !== 'open') throw new Error(`connection is ${chosen.connection}`);
+      chosen.onmidimessage = onMidiMessage;
+      setStatus('');
+    } catch (err) {
+      setStatus(`Could not open ${chosen.name ?? 'the MIDI input'}. Is another app using it? (${String(err)})`, true);
+    }
+  };
+
+  const connected = (): MIDIInput[] => [...access.inputs.values()].filter((i) => i.state === 'connected');
+  let listed = '';
+  // Our own open/close also fires statechange, so rebuild only when the set of
+  // plugged-in inputs changes.
   const refresh = (): void => {
+    const inputs = connected();
+    const ids = inputs.map((i) => i.id).join('\n');
+    if (ids === listed) return;
+    listed = ids;
     const current = inputSelect.value;
-    inputSelect.replaceChildren();
-    for (const input of access.inputs.values()) {
-      inputSelect.add(new Option(input.name ?? input.id, input.id));
-    }
-    if ([...access.inputs.keys()].includes(current)) inputSelect.value = current;
-    connect();
+    inputSelect.replaceChildren(...inputs.map((i) => new Option(i.name ?? i.id, i.id)));
+    if (inputs.some((i) => i.id === current)) inputSelect.value = current;
+    void connect();
   };
-  const connect = (): void => {
-    for (const input of access.inputs.values()) {
-      input.onmidimessage = input.id === inputSelect.value ? onMidiMessage : null;
-    }
-    status.textContent = access.inputs.size === 0 ? 'No MIDI input found' : '';
-  };
-  inputSelect.addEventListener('change', connect);
+
+  inputSelect.addEventListener('change', () => void connect());
   access.onstatechange = refresh;
+  // Force the first listing even when no inputs are connected.
+  listed = '\0';
   refresh();
+}
+
+function showOverlay(s: OverlayStatus): void {
+  portInput.value = String(s.port);
+  const box = $('overlay');
+  if (s.url) {
+    const code = document.createElement('code');
+    code.textContent = s.url;
+    box.replaceChildren('Add to OBS as a browser source: ', code);
+  } else {
+    const err = document.createElement('span');
+    err.className = 'error';
+    err.textContent = s.error ?? 'OBS overlay is not running';
+    box.replaceChildren(err);
+  }
 }
 
 async function main(): Promise<void> {
@@ -85,12 +133,11 @@ async function main(): Promise<void> {
     replayOrigin = performance.now();
   });
   $('clear').addEventListener('click', newTake);
+  $('apply-port').addEventListener('click', async () => {
+    showOverlay(await window.hammerlight.setOverlayPort(Number(portInput.value)));
+  });
 
-  const url = await window.hammerlight.overlayUrl();
-  const code = document.createElement('code');
-  code.textContent = url;
-  if (url) $('overlay').replaceChildren('OBS browser source: ', code);
-  else $('overlay').textContent = 'OBS overlay server is not running';
+  showOverlay(await window.hammerlight.overlayStatus());
 
   setInterval(() => window.hammerlight.broadcast({ type: 'clock', t: sessionTime(performance.now()) }), CLOCK_INTERVAL_MS);
 
