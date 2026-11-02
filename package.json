@@ -1,0 +1,34 @@
+{
+  "name": "hammerlight",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A MIDI piano visualizer for live streaming with OBS and for making videos.",
+  "license": "MIT",
+  "author": "Kazuma Furuhashi <k.furuhashi10@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/284km/hammerlight.git"
+  },
+  "type": "commonjs",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "electron": "^45.2.1",
+    "electron-vite": "^6.0.0",
+    "pixi.js": "^8.22.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
